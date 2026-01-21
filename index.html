@@ -2924,16 +2924,47 @@
                 reader.readAsText(file);
             };
 
-            const handleResetData = () => {
-                if (prompt("KETIK 'RESET' UNTUK MENGHAPUS SEMUA DATA:") === 'RESET') {
+const handleResetData = async () => {
+                // 1. Konfirmasi User
+                const confirmMsg = prompt("KETIK 'RESET' UNTUK MENGISI DATA AWAL KE FIREBASE:");
+                if (confirmMsg !== 'RESET') return;
+
+                showToast("Sedang mengirim data ke Firebase...", 'info');
+
+                try {
+                    // 2. PAKSA Tulis Langsung ke Firebase (Tanpa menunggu State)
+                    // Pastikan window.db ada
+                    if (!window.db) throw new Error("Database belum siap/terputus");
+
+                    // Tulis Inventory
+                    await window.setDoc(window.doc(window.db, "kitchen_db", "inventory"), { 
+                        items: initialData 
+                    });
+
+                    // Tulis Products (Resep)
+                    await window.setDoc(window.doc(window.db, "kitchen_db", "products"), { 
+                        items: initialProducts 
+                    });
+
+                    // Kosongkan Log & Request
+                    await window.setDoc(window.doc(window.db, "kitchen_db", "usage_log"), { items: [] });
+                    await window.setDoc(window.doc(window.db, "kitchen_db", "requests"), { items: [] });
+
+                    // 3. Update Tampilan Lokal (Agar terlihat langsung)
                     setInventory(initialData);
                     setProducts(initialProducts);
                     setUsageLog([]);
                     setRequests([]);
-                    showToast("Sistem di-reset ke pengaturan awal.", 'info');
-                    // setTimeout(() => window.location.reload(), 1000);
+
+                    // 4. Sukses
+                    alert("BERHASIL! Data sudah ditembak langsung ke Server Cloud.");
+                    showToast("Database berhasil di-reset & diisi!", 'success');
+
+                } catch (error) {
+                    console.error("Gagal Reset:", error);
+                    alert("GAGAL MENYIMPAN KE FIREBASE:\n" + error.message);
                 }
-            };
+            };            
 
             // --- Views ---
 
