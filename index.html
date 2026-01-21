@@ -4,30 +4,44 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>F&B Inventory Manager</title>
-    <!-- Tailwind CSS -->
+    
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & ReactDOM -->
+    
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-  
-  // Membuat fungsi-fungsi ini tersedia secara global agar bisa dipakai di script Babel
-  window.firebaseModules = { 
-      initializeApp, getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot 
-  };
-</script>
-
-    <!-- Babel for JSX -->
+    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons -->
+    
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Chart.js -->
+    
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts -->
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD1FF48OmU_-AJj4iqb8sJlqfW-X28rWDc",
+            authDomain: "web-drd.firebaseapp.com",
+            projectId: "web-drd",
+            storageBucket: "web-drd.firebasestorage.app",
+            messagingSenderId: "124923823270",
+            appId: "1:124923823270:web:c91f0062a1ab152628e067"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Tempel ke window agar bisa dibaca React
+        window.db = db;
+        window.doc = doc;
+        window.getDoc = getDoc;
+        window.setDoc = setDoc;
+        console.log("Firebase Siap!");
+    </script>
+
     <style>
         /* Cleaner UI Tweaks */
         body { background-color: #f8fafc; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
@@ -61,79 +75,8 @@
     <div id="root"></div>
 
     <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
-    
-    // --- 1. FIREBASE CONFIGURATION (Kode Baru) ---
-    // Mengambil modul dari window yang kita set di head
-    const { initializeApp, getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } = window.firebaseModules;
+        const { useState, useEffect, useMemo } = React;
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyD1FF48OmU_-AJj4iqb8sJlqfW-X28rWDc",
-      authDomain: "web-drd.firebaseapp.com",
-      projectId: "web-drd",
-      storageBucket: "web-drd.firebasestorage.app",
-      messagingSenderId: "124923823270",
-      appId: "1:124923823270:web:c91f0062a1ab152628e067"
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // --- 2. DATA SINKRONISASI (Custom Hook) ---
-    // Hook ini menggantikan localStorage. Ini akan otomatis download data dari Firebase
-    const useFirebaseData = (collectionName, fallbackData) => {
-        const [data, setData] = useState(fallbackData);
-        const [loading, setLoading] = useState(true);
-
-        useEffect(() => {
-            // Subscribe ke database (Realtime Update)
-            const unsubscribe = onSnapshot(collection(db, collectionName), (snapshot) => {
-                const fetchedData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })); // Pakai ID dari Firebase
-                if (fetchedData.length > 0) {
-                    setData(fetchedData);
-                }
-                setLoading(false);
-            }, (error) => {
-                console.error("Error fetching:", error);
-                setLoading(false);
-            });
-            return () => unsubscribe();
-        }, [collectionName]);
-
-        // Fungsi Tambah Data
-        const add = async (newItem) => {
-            try {
-                // Hapus ID jika ada, biar Firebase yang generate ID unik
-                const { id, ...itemData } = newItem; 
-                await addDoc(collection(db, collectionName), itemData);
-            } catch (e) { console.error("Error adding:", e); }
-        };
-
-        // Fungsi Update Data
-        const update = async (item) => {
-            try {
-                const docRef = doc(db, collectionName, item.id);
-                const { id, ...itemData } = item;
-                await updateDoc(docRef, itemData);
-            } catch (e) { console.error("Error update:", e); }
-        };
-
-        // Fungsi Hapus Data
-        const remove = async (id) => {
-            if(!id) return;
-            try {
-                await deleteDoc(doc(db, collectionName, id));
-            } catch (e) { console.error("Error delete:", e); }
-        };
-
-        return { data, loading, add, update, remove, setData }; 
-        // setData diexport cuma buat kompatibilitas UI sementara
-    };
-
-    // --- MOCK DATA (Tetap simpan ini buat data awal jika database kosong) ---
-    const initialData = [ ... ]; // (Kode lama Anda biarkan di sini)
-    const initialProducts = [ ... ]; // (Kode lama Anda biarkan di sini)
         // --- Mock Data & Constants ---
         const initialData = [
             { id: "A101", name: "Beras Pandan Wangi", category: "Bahan Kering", stock: 25, unit: "kg", price: 14000, minStock: 10 },
@@ -2693,74 +2636,75 @@
         function KitchenPro() {
             const { showToast } = useToast();
 
-            // User Auth State
+            // --- 1. STATE AWAL (Default Value) ---
+            // User tetap pakai localStorage untuk sesi login browser
             const [user, setUser] = useState(() => {
                 const saved = localStorage.getItem('fnb_user_role');
                 return saved ? JSON.parse(saved) : null;
             });
-
-            // State
-            // Menggunakan Hook Firebase yang kita buat di atas
-const { data: inventory, add: addInventory, update: updateInventory, remove: removeInventory } = useFirebaseData("inventory", initialData);
-const { data: products, add: addProduct, update: updateProduct, remove: removeProduct } = useFirebaseData("products", initialProducts);
-const { data: usageLog, add: addLog } = useFirebaseData("usage_log", []);
-const { data: requests, add: addRequest, update: updateRequest, remove: removeRequest } = useFirebaseData("requests", []);
-            const [restockCart, setRestockCart] = useState({}); // { itemId: qty }
-
-            // Hash Routing logic for view
-            const [view, setView] = useState(() => {
-                const hash = window.location.hash.replace('#', '');
-                return hash || 'dashboard';
-            });
-
-            // Effect to sync URL hash
-            useEffect(() => {
-                window.location.hash = view;
-            }, [view]);
-
-            // Effect to listen to back button
-            useEffect(() => {
-                const onHashChange = () => {
-                    const hash = window.location.hash.replace('#', '');
-                    if (hash && hash !== view) {
-                        setView(hash);
-                    }
-                };
-                window.addEventListener('hashchange', onHashChange);
-                return () => window.removeEventListener('hashchange', onHashChange);
-            }, [view]);
-
+            
+            // Data utama pakai array kosong/default dulu (nanti diisi Firebase)
+            const [inventory, setInventory] = useState(initialData);
+            const [products, setProducts] = useState(initialProducts);
+            const [usageLog, setUsageLog] = useState([]);
+            const [requests, setRequests] = useState([]);
+// --- STATE YANG HILANG (WAJIB DIKEMBALIKAN) ---
+            const [view, setView] = useState('dashboard');
+            const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+            const [restockCart, setRestockCart] = useState({});
             const [editingItem, setEditingItem] = useState(null);
-            const [searchTerm, setSearchTerm] = useState("");
-            const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
             const [showFormModal, setShowFormModal] = useState(false);
+            const [searchTerm, setSearchTerm] = useState("");
+            // ------------------------------------------------
 
-            // Effects
+            // --- 2. LOAD DATA DARI FIREBASE (Saat Refresh) ---
             useEffect(() => {
-                const handleResize = () => {
-                    if (window.innerWidth >= 768) {
-                        // Desktop: Keep current state or ensure at least collapsed
-                        // No strict enforcement to avoid annoyance, but could set true if needed
-                    } else {
-                        // Mobile: Auto close if resized down
-                        if (isSidebarOpen) setIsSidebarOpen(false);
-                    }
+                const fetchData = async () => {
+                    if (!window.db) return; // Tunggu koneksi
+                    try {
+                        // Ambil Inventory
+                        const invSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "inventory"));
+                        if (invSnap.exists()) setInventory(invSnap.data().items);
+
+                        // Ambil Products
+                        const prodSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "products"));
+                        if (prodSnap.exists()) setProducts(prodSnap.data().items);
+
+                        // Ambil Logs
+                        const logSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "usage_log"));
+                        if (logSnap.exists()) setUsageLog(logSnap.data().items);
+
+                        // Ambil Requests
+                        const reqSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "requests"));
+                        if (reqSnap.exists()) setRequests(reqSnap.data().items);
+
+                    } catch (e) { console.error("Gagal load data:", e); }
                 };
-                window.addEventListener('resize', handleResize);
-                return () => window.removeEventListener('resize', handleResize);
+                
+                // Delay sedikit agar script di head selesai loading
+                setTimeout(fetchData, 1000);
             }, []);
 
+            // --- 3. SIMPAN DATA KE FIREBASE (Saat Ada Perubahan) ---
             useEffect(() => {
+                // Simpan User session
                 if (user) localStorage.setItem('fnb_user_role', JSON.stringify(user));
                 else localStorage.removeItem('fnb_user_role');
-                
-                localStorage.setItem('fnb_inventory_data', JSON.stringify(inventory));
-                localStorage.setItem('fnb_usage_log', JSON.stringify(usageLog));
-                localStorage.setItem('fnb_products_data', JSON.stringify(products));
-                localStorage.setItem('fnb_requests_data', JSON.stringify(requests));
-            }, [inventory, usageLog, products, requests, user]);
 
-            useEffect(() => {
+                const saveData = async () => {
+                    if (!window.db) return;
+                    try {
+                        await window.setDoc(window.doc(window.db, "kitchen_db", "inventory"), { items: inventory });
+                        await window.setDoc(window.doc(window.db, "kitchen_db", "products"), { items: products });
+                        await window.setDoc(window.doc(window.db, "kitchen_db", "usage_log"), { items: usageLog });
+                        await window.setDoc(window.doc(window.db, "kitchen_db", "requests"), { items: requests });
+                    } catch (e) { console.error("Gagal save data:", e); }
+                };
+                saveData();
+            }, [inventory, products, usageLog, requests, user]);
+
+            // ... Lanjut ke const [restockCart, setRestockCart] ...            
+		useEffect(() => {
                 if (user) lucide.createIcons();
             }); // Run on every render
 
