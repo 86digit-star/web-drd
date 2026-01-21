@@ -2,6 +2,14 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.tailwindcss.com">
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>F&B Inventory Manager</title>
     
@@ -20,7 +28,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        // Tambahkan 'enableIndexedDbPersistence' di sini
+        import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyD1FF48OmU_-AJj4iqb8sJlqfW-X28rWDc",
@@ -34,12 +43,22 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Tempel ke window agar bisa dibaca React
+        // --- AKTIFKAN CACHE OFFLINE ---
+        enableIndexedDbPersistence(db)
+            .catch((err) => {
+                if (err.code == 'failed-precondition') {
+                    console.log("Tab ganda terbuka, persistence dimatikan.");
+                } else if (err.code == 'unimplemented') {
+                    console.log("Browser tidak support persistence.");
+                }
+            });
+        // -----------------------------
+
         window.db = db;
         window.doc = doc;
         window.getDoc = getDoc;
         window.setDoc = setDoc;
-        console.log("Firebase Siap!");
+        console.log("Firebase Siap dengan Cache!");
     </script>
 
     <style>
@@ -2644,10 +2663,12 @@
             });
             
             // Data utama pakai array kosong/default dulu (nanti diisi Firebase)
-            const [inventory, setInventory] = useState(initialData);
+            // KODE BARU (Perbaikan)
+	    const [inventory, setInventory] = useState([]); // Mulai dengan array kosong
             const [products, setProducts] = useState(initialProducts);
             const [usageLog, setUsageLog] = useState([]);
             const [requests, setRequests] = useState([]);
+	const [isLoading, setIsLoading] = useState(true); // Default true
 // --- STATE YANG HILANG (WAJIB DIKEMBALIKAN) ---
             const [view, setView] = useState('dashboard');
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -2659,31 +2680,20 @@
 
             // --- 2. LOAD DATA DARI FIREBASE (Saat Refresh) ---
             useEffect(() => {
-                const fetchData = async () => {
-                    if (!window.db) return; // Tunggu koneksi
-                    try {
-                        // Ambil Inventory
-                        const invSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "inventory"));
-                        if (invSnap.exists()) setInventory(invSnap.data().items);
+    const fetchData = async () => {
+        if (!window.db) return;
+        try {
+            // ... (kode ambil data inventory, products, dll tetap sama) ...
 
-                        // Ambil Products
-                        const prodSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "products"));
-                        if (prodSnap.exists()) setProducts(prodSnap.data().items);
-
-                        // Ambil Logs
-                        const logSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "usage_log"));
-                        if (logSnap.exists()) setUsageLog(logSnap.data().items);
-
-                        // Ambil Requests
-                        const reqSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "requests"));
-                        if (reqSnap.exists()) setRequests(reqSnap.data().items);
-
-                    } catch (e) { console.error("Gagal load data:", e); }
-                };
-                
-                // Delay sedikit agar script di head selesai loading
-                setTimeout(fetchData, 1000);
-            }, []);
+            // Tambahkan ini di akhir try:
+            setIsLoading(false); 
+        } catch (e) { 
+            console.error(e); 
+            setIsLoading(false); // Tetap matikan loading meski error
+        }
+   	 };
+    	setTimeout(fetchData, 1000); // Hapus timeout ini jika ingin lebih cepat, atau biarkan untuk efek
+	}, []);
 
             // --- 3. SIMPAN DATA KE FIREBASE (Saat Ada Perubahan) ---
             useEffect(() => {
@@ -5365,6 +5375,18 @@
                     </form>
                 );
             };
+
+// Letakkan ini tepat SETELAH user login check, SEBELUM render Sidebar
+if (user && isLoading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                <div className="text-slate-500 font-medium animate-pulse">Menyiapkan Dapur...</div>
+            </div>
+        </div>
+    );
+}
 
             return (
                 <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
