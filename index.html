@@ -9,7 +9,6 @@
 <link rel="preconnect" href="https://unpkg.com">
 <link rel="preconnect" href="https://www.gstatic.com">
 <link rel="preconnect" href="https://firestore.googleapis.com">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>F&B Inventory Manager</title>
     
@@ -26,10 +25,9 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <script type="module">
+   <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        // Tambahkan 'enableIndexedDbPersistence' di sini
-        import { getFirestore, doc, getDoc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyD1FF48OmU_-AJj4iqb8sJlqfW-X28rWDc",
@@ -43,22 +41,12 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- AKTIFKAN CACHE OFFLINE ---
-        enableIndexedDbPersistence(db)
-            .catch((err) => {
-                if (err.code == 'failed-precondition') {
-                    console.log("Tab ganda terbuka, persistence dimatikan.");
-                } else if (err.code == 'unimplemented') {
-                    console.log("Browser tidak support persistence.");
-                }
-            });
-        // -----------------------------
-
+        // Tempel ke window agar bisa dibaca React
         window.db = db;
         window.doc = doc;
         window.getDoc = getDoc;
         window.setDoc = setDoc;
-        console.log("Firebase Siap dengan Cache!");
+        console.log("Firebase Siap!");
     </script>
 
     <style>
@@ -2655,49 +2643,65 @@
         function KitchenPro() {
             const { showToast } = useToast();
 
-            // --- 1. STATE AWAL (Default Value) ---
-            // User tetap pakai localStorage untuk sesi login browser
+            // --- 1. STATE MANAGEMENT ---
+            
+            // User Session
             const [user, setUser] = useState(() => {
                 const saved = localStorage.getItem('fnb_user_role');
                 return saved ? JSON.parse(saved) : null;
             });
-            
-            // Data utama pakai array kosong/default dulu (nanti diisi Firebase)
-            // KODE BARU (Perbaikan)
-	    const [inventory, setInventory] = useState([]); // Mulai dengan array kosong
+
+            // Data Utama (Default Kosong agar tidak menimpa Firebase)
+            const [inventory, setInventory] = useState([]); 
             const [products, setProducts] = useState(initialProducts);
             const [usageLog, setUsageLog] = useState([]);
             const [requests, setRequests] = useState([]);
-	const [isLoading, setIsLoading] = useState(true); // Default true
-// --- STATE YANG HILANG (WAJIB DIKEMBALIKAN) ---
+            
+            // State UI (Wajib Ada & Aktif)
+            const [isLoading, setIsLoading] = useState(true); 
+            
+            // State Halaman & Fitur
             const [view, setView] = useState('dashboard');
             const [isSidebarOpen, setIsSidebarOpen] = useState(false);
             const [restockCart, setRestockCart] = useState({});
             const [editingItem, setEditingItem] = useState(null);
             const [showFormModal, setShowFormModal] = useState(false);
             const [searchTerm, setSearchTerm] = useState("");
-            // ------------------------------------------------
 
-            // --- 2. LOAD DATA DARI FIREBASE (Saat Refresh) ---
+            // --- 2. LOAD DATA DARI FIREBASE (Saat Buka Web) ---
             useEffect(() => {
-    const fetchData = async () => {
-        if (!window.db) return;
-        try {
-            // ... (kode ambil data inventory, products, dll tetap sama) ...
+                const fetchData = async () => {
+                    if (!window.db) return;
+                    try {
+                        const invSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "inventory"));
+                        if (invSnap.exists()) setInventory(invSnap.data().items);
 
-            // Tambahkan ini di akhir try:
-            setIsLoading(false); 
-        } catch (e) { 
-            console.error(e); 
-            setIsLoading(false); // Tetap matikan loading meski error
-        }
-   	 };
-    	setTimeout(fetchData, 1000); // Hapus timeout ini jika ingin lebih cepat, atau biarkan untuk efek
-	}, []);
+                        const prodSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "products"));
+                        if (prodSnap.exists()) setProducts(prodSnap.data().items);
 
-            // --- 3. SIMPAN DATA KE FIREBASE (Saat Ada Perubahan) ---
+                        const logSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "usage_log"));
+                        if (logSnap.exists()) setUsageLog(logSnap.data().items);
+
+                        const reqSnap = await window.getDoc(window.doc(window.db, "kitchen_db", "requests"));
+                        if (reqSnap.exists()) setRequests(reqSnap.data().items);
+
+                        // Data selesai diambil, matikan loading
+                        setIsLoading(false); 
+                    } catch (e) { 
+                        console.error("Gagal load:", e); 
+                        setIsLoading(false); // Tetap matikan loading meski error agar tidak blank
+                    }
+                };
+                
+                // Jalankan saat pertama kali mount
+                setTimeout(fetchData, 1000);
+            }, []);
+
+            // --- 3. SIMPAN DATA KE FIREBASE (Auto-Save) ---
             useEffect(() => {
-                // Simpan User session
+                // PENGAMAN PENTING: Jangan simpan kalau data belum selesai diload!
+                if (isLoading) return; 
+
                 if (user) localStorage.setItem('fnb_user_role', JSON.stringify(user));
                 else localStorage.removeItem('fnb_user_role');
 
@@ -2708,15 +2712,21 @@
                         await window.setDoc(window.doc(window.db, "kitchen_db", "products"), { items: products });
                         await window.setDoc(window.doc(window.db, "kitchen_db", "usage_log"), { items: usageLog });
                         await window.setDoc(window.doc(window.db, "kitchen_db", "requests"), { items: requests });
-                    } catch (e) { console.error("Gagal save data:", e); }
+                    } catch (e) { console.error("Gagal save:", e); }
                 };
-                saveData();
-            }, [inventory, products, usageLog, requests, user]);
+                
+                // Debounce: Tunggu 0.5 detik setelah berhenti mengetik baru simpan
+                const timeoutId = setTimeout(saveData, 500);
+                return () => clearTimeout(timeoutId);
 
-            // ... Lanjut ke const [restockCart, setRestockCart] ...            
-		useEffect(() => {
-                if (user) lucide.createIcons();
-            }); // Run on every render
+            }, [inventory, products, usageLog, requests, user, isLoading]);
+
+            // Fix Icon Lucide agar selalu muncul
+            useEffect(() => {
+                if (user && window.lucide) window.lucide.createIcons();
+            });
+
+            // --- Auth Logic --- (Ini batas bawah kode yang diganti)
 
             // --- Auth Logic ---
             const handleLogin = (role, features = ['list', 'products', 'usage', 'restock', 'finance']) => {
@@ -2924,47 +2934,16 @@
                 reader.readAsText(file);
             };
 
-const handleResetData = async () => {
-                // 1. Konfirmasi User
-                const confirmMsg = prompt("KETIK 'RESET' UNTUK MENGISI DATA AWAL KE FIREBASE:");
-                if (confirmMsg !== 'RESET') return;
-
-                showToast("Sedang mengirim data ke Firebase...", 'info');
-
-                try {
-                    // 2. PAKSA Tulis Langsung ke Firebase (Tanpa menunggu State)
-                    // Pastikan window.db ada
-                    if (!window.db) throw new Error("Database belum siap/terputus");
-
-                    // Tulis Inventory
-                    await window.setDoc(window.doc(window.db, "kitchen_db", "inventory"), { 
-                        items: initialData 
-                    });
-
-                    // Tulis Products (Resep)
-                    await window.setDoc(window.doc(window.db, "kitchen_db", "products"), { 
-                        items: initialProducts 
-                    });
-
-                    // Kosongkan Log & Request
-                    await window.setDoc(window.doc(window.db, "kitchen_db", "usage_log"), { items: [] });
-                    await window.setDoc(window.doc(window.db, "kitchen_db", "requests"), { items: [] });
-
-                    // 3. Update Tampilan Lokal (Agar terlihat langsung)
+            const handleResetData = () => {
+                if (prompt("KETIK 'RESET' UNTUK MENGHAPUS SEMUA DATA:") === 'RESET') {
                     setInventory(initialData);
                     setProducts(initialProducts);
                     setUsageLog([]);
                     setRequests([]);
-
-                    // 4. Sukses
-                    alert("BERHASIL! Data sudah ditembak langsung ke Server Cloud.");
-                    showToast("Database berhasil di-reset & diisi!", 'success');
-
-                } catch (error) {
-                    console.error("Gagal Reset:", error);
-                    alert("GAGAL MENYIMPAN KE FIREBASE:\n" + error.message);
+                    showToast("Sistem di-reset ke pengaturan awal.", 'info');
+                    setTimeout(() => window.location.reload(), 1000);
                 }
-            };            
+            };
 
             // --- Views ---
 
@@ -2972,6 +2951,17 @@ const handleResetData = async () => {
                 // Calculate pending requests count
                 const pendingRequestsCount = requests.filter(r => r.status === 'pending').length;
 
+	// Tampilan Loading (Spinner)
+            if (user && isLoading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="text-slate-500 font-medium animate-pulse">Menyiapkan Dapur...</div>
+                        </div>
+                    </div>
+                );
+            }
                 return (
                     <>
                         {/* Mobile Backdrop */}
@@ -5406,18 +5396,6 @@ const handleResetData = async () => {
                     </form>
                 );
             };
-
-// Letakkan ini tepat SETELAH user login check, SEBELUM render Sidebar
-if (user && isLoading) {
-    return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-            <div className="flex flex-col items-center gap-4">
-                <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                <div className="text-slate-500 font-medium animate-pulse">Menyiapkan Dapur...</div>
-            </div>
-        </div>
-    );
-}
 
             return (
                 <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
